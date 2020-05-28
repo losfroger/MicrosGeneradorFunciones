@@ -9,7 +9,8 @@ LIST P = 18f45K50
     
 Ajustador EQU 0x00 ; Frecuencias
 Est EQU 0x01 ; Contador para voltajes de onda
- 
+Aux1 EQU 0x02 ; Usado por Retardo2
+
 ORG 0x00
 
 Start:
@@ -17,12 +18,27 @@ Start:
     CLRF ANSELD ; PORTD como puerto digital
     CLRF TRISD ; PORTD como salida
     CLRF PORTD ;Limpia PORTD
+    
+    CLRF ANSELA ; PORTA como puerto digital
+    CLRF TRISA ; PORTA como salida
+    CLRF PORTA ;Limpia PORTA
+    
     CLRF ANSELB
     SETF TRISB
+    
+    BCF TRISB, 6
+    BCF TRISB, 7
+    
     CLRF ANSELC
     SETF TRISC
+    
     MOVLW b'01100000' ; Oscilador en 8 MHz
     MOVWF OSCCON
+    
+    ; LCD configuracion
+    CALL Retardo2
+    CALL LCDInit
+    
     CLRF Est ;limpia Est
     MOVLW 0x01
     MOVWF Ajustador ;Carga valor inical a Ajustador
@@ -34,6 +50,150 @@ MainLoop:
     CALL On
     GOTO MainLoop
     
+Retardo:
+    DECFSZ Ajustador,F
+	GOTO Retardo
+    RETURN
+
+Retardo2:
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+    INCF Aux1
+LoopRetardo2:
+    DECFSZ Aux1,F
+	GOTO LoopRetardo2
+    RETURN
+    
+; =========================================================================
+; LCD
+; =========================================================================
+LCDInit:
+    Call Retardo2
+    MOVLW h'38'  ; Comando para configurar la pantalla en modo 8 bits
+    CALL LCD_Comm
+
+    MOVLW h'0C' ; Prender pantalla sin cursor
+    CALL LCD_Comm
+    
+    ; Configurar caracteres especiales
+    CALL LCD_Senoidal
+    CALL LCD_Cuadrada
+    CALL LCD_Rampa
+    
+    RETURN
+    
+LCD_Comm:
+    MOVWF PORTA
+    BCF PORTB, RB6 ; Registro de commandos
+    BSF PORTB, RB7 ; Mandar un pulso en alto al pin de Enable
+    NOP
+    BCF PORTB, RB7
+    Call Retardo2
+    CLRF PORTA
+    RETURN   
+ 
+LCD_Char:
+    MOVWF PORTA
+    BSF PORTB, RB6 ; Mandar datos
+    BSF PORTB, RB7 ; Mandar un pulso en alto al pin de Enable
+    NOP
+    BCF PORTB, RB7 ; Desactivar el pin Enable
+    Call Retardo2
+    CLRF PORTA
+    RETURN
+    
+; Configura el caracter de senoidal
+; Para usarlo mueve al registro W el valor h'01' y luego manda a llamar LCD_Char
+LCD_Senoidal:
+    MOVLW h'48'
+    CALL LCD_Comm
+
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'8'
+    CALL LCD_Char
+    MOVLW d'20'
+    CALL LCD_Char
+    MOVLW d'21'
+    CALL LCD_Char
+    MOVLW d'5'
+    CALL LCD_Char
+    MOVLW d'2'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    RETURN
+
+; Configura el caracter de cuadrada
+; Valor: h'02'
+LCD_Cuadrada:
+    MOVLW h'50'
+    CALL LCD_Comm
+
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'14'
+    CALL LCD_Char
+    MOVLW d'10'
+    CALL LCD_Char
+    MOVLW d'10'
+    CALL LCD_Char
+    MOVLW d'27'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    RETURN
+
+; Configura el caracter de Rampa
+; Valor: h'03'
+LCD_Rampa:
+    MOVLW h'58'
+    CALL LCD_Comm
+
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'2'
+    CALL LCD_Char
+    MOVLW d'6'
+    CALL LCD_Char
+    MOVLW d'10'
+    CALL LCD_Char
+    MOVLW d'19'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    MOVLW d'0'
+    CALL LCD_Char
+    RETURN
+    
+; =========================================================================
+; Generador de funciones
+; =========================================================================
 On:
     INCF Est,F ;Incrementa Est cada que el primgrama regresa a esta linea
     MOVLW 0X7F
@@ -58,16 +218,9 @@ SS: ;SS => Selección tipo de Señal
     BTFSC PORTC,2
 	CALL Square
     RETURN
-
-    
-Retardo:
-    DECFSZ Ajustador,F
-    GOTO Retardo
-    RETURN
-
     
 ORG 2000h ; Con esta instruccion, "Senoidal" empieza en la línea 3000h para evitar desbordamiento de stack
-
+    
 Sine:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -145,7 +298,7 @@ Rampa:
     ADDLW   0x04
     MOVWF   PCL
     ADDWF   PCL,F
-   RETLW 0x00
+    RETLW 0x00
     RETLW 0x04
     RETLW 0x08
     RETLW 0x0C
@@ -209,7 +362,7 @@ Rampa:
     RETLW 0xFB
     RETLW 0xFF
 
-    org 5000h
+org 5000h
 Square:
     MOVF    Est,W
     ADDWF   PCL,W
