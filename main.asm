@@ -212,15 +212,19 @@ On:
     
 SS: ;SS => Selección tipo de Señal
     BTFSC PORTC,0
-	CALL Sine
+	CALL SineB
     BTFSC PORTC,1
-	CALL Rampa
+	CALL RampaB
     BTFSC PORTC,2
-	CALL Square
+	CALL SquareB
     RETURN
     
 ORG 2000h ; Con esta instruccion, "Senoidal" empieza en la línea 3000h para evitar desbordamiento de stack
-    
+SineB:
+    MOVLW h'80'
+    CALL LCD_Comm
+    MOVLW h'1'
+    CALL LCD_Char
 Sine:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -292,6 +296,11 @@ Sine:
     RETLW 0x7F
 
 ORG 4000h
+RampaB:
+    MOVLW h'80'
+    CALL LCD_Comm
+    MOVLW h'3'
+    CALL LCD_Char
 Rampa:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -362,7 +371,12 @@ Rampa:
     RETLW 0xFB
     RETLW 0xFF
 
-org 5000h
+ORG 5000h
+SquareB:
+    MOVLW h'80'
+    CALL LCD_Comm
+    MOVLW h'2'
+    CALL LCD_Char
 Square:
     MOVF    Est,W
     ADDWF   PCL,W
