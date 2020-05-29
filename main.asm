@@ -25,6 +25,9 @@ Frec1 EQU 0X0A
 Frec2 EQU 0X0B
 Frec3 EQU 0X0C
 Frec4 EQU 0X0D
+
+; Bandera de que se cambio el tipo de onda, se activa si se pone en 0
+Cambio EQU 0xF 
  
 ORG 0
 GOTO Start
@@ -92,23 +95,35 @@ Start:
     
     CALL Retardo2
     
-    MOVLW 0x00
-    MOVWF Ajustador
-    CALL Retardo
-    
     CLRF Est ;limpia Est
     MOVLW 0xFF
     MOVWF Ajustador ;Carga valor inical a Ajustador
     
+    CLRF ValorSerial
+    CLRF Tipo
+    CLRF SAjustador1
+    CLRF SAjustador2
+    CLRF Frec1
+    CLRF Frec2
+    CLRF Frec3
+    CLRF Frec4
+    
     MOVLW d'1'
     MOVWF AuxSerial
-    
-    MOVLW d'50'
+    MOVLW d'50' ; Configurar retardo del retardo 2
     MOVWF R2Aux
+    MOVLW d'1' ; Desactivar bandera de cambio
+    MOVWF Cambio
     
+; Loop principal del programa, espera hasta que se active la bandera de que se
+; cambio el tipo de onda
 MainLoop:
+    MOVLW d'0'
+    CPFSGT Cambio ; Comprobar si hay un cambio
+	CALL SS
     GOTO MainLoop
-    
+
+; Funcion de retardo ajustable
 Retardo:
     MOVFF Ajustador, Aux1
 RetardoLoop:
@@ -116,6 +131,7 @@ RetardoLoop:
 	GOTO RetardoLoop
     RETURN
 
+; Retardo fijo
 Retardo2:
    MOVFF R2Aux, Aux2
 LoopRetardo2:
@@ -125,15 +141,17 @@ LoopRetardo2:
 
 ; =========================================================================
 ; Receptor asincrono
+; Recibe los datos del puerto serial asincrono y los guarda en diferentes registros
+; dependiendo de cuantos ya ha recibido
 ; =========================================================================
-Receptor: 
+Receptor:
     MOVF RCREG1, W
     MOVWF ValorSerial
     
     ; Usar PCL para ir cambiando que valor se asigna cada que se mandan
     ; 8 Caracteres
     MOVF AuxSerial, W
-    ADDWF PCL
+    ADDWF PCL ; Sumarle a PCL hace que salte al n�mero de instrucciones que le sumas
     MOVFF ValorSerial, Tipo
     GOTO EndR
     MOVFF ValorSerial, SAjustador1
@@ -153,9 +171,7 @@ Receptor:
     ; Mostrar tipo de onda
     MOVLW h'80'
     CALL LCD_Comm
-    
-    CALL Retardo2
-    
+
     MOVLW d'48'
     SUBWF Tipo, 0
     CALL LCD_Char
@@ -182,17 +198,24 @@ Receptor:
     MOVLW d'1'
     MOVWF AuxSerial
     
-    RETFIE
+    ;Activar bandera de cambio
+    MOVLW d'0'
+    MOVWF Cambio
+    
+    RETFIE 1
     
     EndR:
+    ; Sumarle al saltador de instrucciones para que guarde el siguiente valor
+    ; en un registro diferente
     MOVLW d'8'
     ADDWF AuxSerial
-    BCF PIR1,5
-    RETFIE
+    RETFIE 1
     
 ; =========================================================================
 ; LCD
 ; =========================================================================
+
+; Comandos para inicializar correctamente la pantalla LCD
 LCDInit:
     Call Retardo2
     MOVLW h'38'  ; Comando para configurar la pantalla en modo 8 bits
@@ -210,7 +233,9 @@ LCDInit:
     CALL LCD_Comm
     
     RETURN
-    
+
+; Funcion para poder mandar un comando a la pantalla LCD, para usarlo se pone el
+; comando en el registro W antes de mandarlo a llamar
 LCD_Comm:
     MOVWF PORTA
     BCF PORTB, RB6 ; Registro de commandos
@@ -219,7 +244,8 @@ LCD_Comm:
     BCF PORTB, RB7
     Call Retardo2
     RETURN   
- 
+
+; Funcion para mandar un caracter a la pantalla LCD, se usa igual que el de comandos
 LCD_Char:
     MOVWF PORTA
     BSF PORTB, RB6 ; Mandar datos
@@ -229,7 +255,7 @@ LCD_Char:
     Call Retardo2
     RETURN
     
-; Configura el caracter de senoidal
+; Configura el caracter especial de senoidal
 ; Para usarlo mueve al registro W el valor h'01' y luego manda a llamar LCD_Char
 LCD_Senoidal:
     MOVLW h'48'
@@ -304,38 +330,70 @@ LCD_Rampa:
 ; =========================================================================
 ; Generador de funciones
 ; =========================================================================
-On:
-    INCF Est,F ;Incrementa Est cada que el primgrama regresa a esta linea
+
+SS: ;SS => Seleccion tipo de Senial
+    MOVLW d'1'
+    MOVWF Cambio
+    NOP
+    MOVF Tipo, w
+    ; Switch case
+    
+    XORLW '1'
+	BZ SenoLoop
+    
+    XORLW '2'^'1'
+	BZ CuadLoop
+    
+    XORLW '3'^'2'
+	BZ RampaLoop
+	
+    MOVLW d'1'
+    MOVWF Cambio
+    
+    RETURN
+
+; Loop que no sale hasta que se active la bandera de cambio
+SenoLoop:
+    INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
     MOVLW 0X7F
     CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
 	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
     CALL Sine
     MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
-;    BTFSC PORTB,1 ;Si el pin 1 del puerto B esta en 0, salta de instruccion
-;	INCF Ajustador ;Si el pin 1 del puerto B esta en 1, incrementa el valor de Ajustador, disminuyendo la frecuencia
-;    BTFSC PORTB,2 ;Si el pin 2 del puerto B esta en 0, salta de instruccion
-;	DECF Ajustador ;Si el pin 1 del puerto B esta en 1, decrementa el valor de Ajustador, aumentando la frecuencia
     CALL Retardo 
-    GOTO On
-;    BTFSS PORTB,0 ; Si el valor del pin 0 del puerto B esta en 1, el programa regresa a MainLoop
-;	GOTO On ; Si el valor del pin 0 del puerto B esta en 0, el programa regresa a On, por lo tanto, sigue generando la onda
+    TSTFSZ Cambio
+	GOTO SenoLoop
+    RETURN
+
+; Igual que el de seno pero para la cuadrada
+CuadLoop:
+    INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
+    MOVLW 0X7F
+    CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
+	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
+    CALL Square
+    MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
+    CALL Retardo 
+    TSTFSZ Cambio
+	GOTO CuadLoop
+    RETURN
+
+; Igual que el de seno pero para la rampa
+RampaLoop:
+    INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
+    MOVLW 0X7F
+    CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
+	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
+    CALL Rampa
+    MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
+    CALL Retardo 
+    
+    ; Revisar bandera de cambio, si est� en cero regresa
+    TSTFSZ Cambio
+	GOTO RampaLoop
     RETURN
     
-SS: ;SS => Selección tipo de Señal
-    BTFSC PORTC,0
-	CALL SineB
-    BTFSC PORTC,1
-	CALL RampaB
-    BTFSC PORTC,2
-	CALL SquareB
-    RETURN
-    
-ORG 2000h ; Con esta instruccion, "Senoidal" empieza en la línea 3000h para evitar desbordamiento de stack
-SineB:
-;    MOVLW h'80'
-;    CALL LCD_Comm
-;    MOVLW h'1'
-;    CALL LCD_Char
+ORG 2000h ; Con esta instruccion, "Senoidal" empieza en la linea 3000h para evitar desbordamiento de stack
 Sine:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -346,7 +404,7 @@ Sine:
     RETLW 0x8C
     RETLW 0x99
     RETLW 0xA5
-    RETLW 0x99 ; B1
+    RETLW 0x99
     RETLW 0xBD
     RETLW 0xC8
     RETLW 0xD2
@@ -407,11 +465,6 @@ Sine:
     RETLW 0x7F
 
 ORG 4000h
-RampaB:
-;    MOVLW h'80'
-;    CALL LCD_Comm
-;    MOVLW h'3'
-;    CALL LCD_Char
 Rampa:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -483,11 +536,6 @@ Rampa:
     RETLW 0xFF
 
 ORG 5000h
-SquareB:
-;    MOVLW h'80'
-;    CALL LCD_Comm
-;    MOVLW h'2'
-;    CALL LCD_Char
 Square:
     MOVF    Est,W
     ADDWF   PCL,W
