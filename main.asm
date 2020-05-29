@@ -1,5 +1,5 @@
 LIST P = 18f45K50
- #include<p18f45K50.inc>
+#include<p18f45K50.inc>
     
     CONFIG WDTEN = OFF
     CONFIG MCLRE = ON
@@ -8,10 +8,15 @@ LIST P = 18f45K50
     CONFIG FOSC = INTOSCIO
     
 Ajustador EQU 0x00 ; Frecuencias
-Est EQU 0x01 ; Contador para voltajes de onda
-Aux1 EQU 0x02 ; Usado por Retardo2
-
-ORG 0x00
+Ajustador2 EQU 0X01
+Est EQU 0x02 ; Contador para voltajes de onda
+Aux1 EQU 0x03 ; Usado por Retardo
+Aux2 EQU 0x04 ; Usado por Retardo2
+ 
+ORG 0
+GOTO Start
+ORG 0x08
+GOTO Receptor
 
 Start:
    MOVLB 0x0F
@@ -31,55 +36,104 @@ Start:
     
     CLRF ANSELC
     SETF TRISC
+    CLRF PORTC
     
-    MOVLW b'01100000' ; Oscilador en 8 MHz
+    MOVLW b'01110000' ; Oscilador en 16 MHz
     MOVWF OSCCON
+    
+    ; Config puerto serial asincrono
+    MOVLB   0x0F
+    CLRF    ANSELC,1
+
+    MOVLW   b'00000000'
+    MOVWF   BAUDCON1 ; Baud rate control register 
+    
+    MOVLW   b'11000000'
+    MOVWF   TRISC ; Para poner entradas y salidas
+    
+    ;definicion de la razon de baudios
+    MOVLW   d'100' ;4MHz = 25 16MHz = 100
+    MOVWF   SPBRG1
+
+    MOVLW   b'00100100' ;BRGH=1
+    MOVWF   TXSTA1 ;SE HABILITA TRANSMISION DE DATOS
+    
+    MOVLW   b'00000000'
+    MOVWF   SPBRGH1
+    
+    MOVLW   b'10010000'
+    MOVWF   RCSTA1  ;HABILITA EL PUERTO SERIAL
+    
+    MOVLW b'11000000' ; Activa interrupciones de alto y bajo nivel
+    MOVWF INTCON
+    
+    BSF PIE1, RCIE
+    
     
     ; LCD configuracion
     CALL Retardo2
     CALL LCDInit
     
+    MOVLW h'80'
+    CALL LCD_Comm
+    
+    MOVLW h'0C'
+    CALL LCD_Comm
+  
+    CALL Retardo
+    
+    MOVLW 0x00
+    MOVWF Ajustador
+    CALL Retardo
+    
     CLRF Est ;limpia Est
-    MOVLW 0x01
+    MOVLW 0xFF
     MOVWF Ajustador ;Carga valor inical a Ajustador
     
 MainLoop:
-    MOVLW 0x00
-    MOVWF PORTD
-    BTFSC PORTB,0
-    CALL On
     GOTO MainLoop
     
 Retardo:
-    DECFSZ Ajustador,F
-	GOTO Retardo
+    MOVFF Ajustador, Aux1
+RetardoLoop:
+    DECFSZ Aux1,F
+	GOTO RetardoLoop
     RETURN
 
 Retardo2:
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
-    INCF Aux1
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
+    INCF Aux2
 LoopRetardo2:
-    DECFSZ Aux1,F
+    DECFSZ Aux2,F
 	GOTO LoopRetardo2
     RETURN
+
+; =========================================================================
+; Receptor asincrono
+; =========================================================================
+Receptor: 
+    MOVF RCREG1, W
+    CALL LCD_Char
+    BCF PIR1,5
+    RETFIE
     
 ; =========================================================================
 ; LCD
@@ -190,7 +244,7 @@ LCD_Rampa:
     MOVLW d'0'
     CALL LCD_Char
     RETURN
-    
+
 ; =========================================================================
 ; Generador de funciones
 ; =========================================================================
@@ -199,15 +253,16 @@ On:
     MOVLW 0X7F
     CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
 	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
-    CALL SS
+    CALL Sine
     MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
-    BTFSC PORTB,1 ;Si el pin 1 del puerto B esta en 0, salta de instruccion
-	INCF Ajustador ;Si el pin 1 del puerto B esta en 1, incrementa el valor de Ajustador, disminuyendo la frecuencia
-    BTFSC PORTB,2 ;Si el pin 2 del puerto B esta en 0, salta de instruccion
-	DECF Ajustador ;Si el pin 1 del puerto B esta en 1, decrementa el valor de Ajustador, aumentando la frecuencia
+;    BTFSC PORTB,1 ;Si el pin 1 del puerto B esta en 0, salta de instruccion
+;	INCF Ajustador ;Si el pin 1 del puerto B esta en 1, incrementa el valor de Ajustador, disminuyendo la frecuencia
+;    BTFSC PORTB,2 ;Si el pin 2 del puerto B esta en 0, salta de instruccion
+;	DECF Ajustador ;Si el pin 1 del puerto B esta en 1, decrementa el valor de Ajustador, aumentando la frecuencia
     CALL Retardo 
-    BTFSS PORTB,0 ; Si el valor del pin 0 del puerto B esta en 1, el programa regresa a MainLoop
-	GOTO On ; Si el valor del pin 0 del puerto B esta en 0, el programa regresa a On, por lo tanto, sigue generando la onda
+    GOTO On
+;    BTFSS PORTB,0 ; Si el valor del pin 0 del puerto B esta en 1, el programa regresa a MainLoop
+;	GOTO On ; Si el valor del pin 0 del puerto B esta en 0, el programa regresa a On, por lo tanto, sigue generando la onda
     RETURN
     
 SS: ;SS => Selección tipo de Señal
@@ -221,10 +276,10 @@ SS: ;SS => Selección tipo de Señal
     
 ORG 2000h ; Con esta instruccion, "Senoidal" empieza en la línea 3000h para evitar desbordamiento de stack
 SineB:
-    MOVLW h'80'
-    CALL LCD_Comm
-    MOVLW h'1'
-    CALL LCD_Char
+;    MOVLW h'80'
+;    CALL LCD_Comm
+;    MOVLW h'1'
+;    CALL LCD_Char
 Sine:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -297,10 +352,10 @@ Sine:
 
 ORG 4000h
 RampaB:
-    MOVLW h'80'
-    CALL LCD_Comm
-    MOVLW h'3'
-    CALL LCD_Char
+;    MOVLW h'80'
+;    CALL LCD_Comm
+;    MOVLW h'3'
+;    CALL LCD_Char
 Rampa:
     MOVF    Est,W
     ADDWF   PCL,W
@@ -373,10 +428,10 @@ Rampa:
 
 ORG 5000h
 SquareB:
-    MOVLW h'80'
-    CALL LCD_Comm
-    MOVLW h'2'
-    CALL LCD_Char
+;    MOVLW h'80'
+;    CALL LCD_Comm
+;    MOVLW h'2'
+;    CALL LCD_Char
 Square:
     MOVF    Est,W
     ADDWF   PCL,W
