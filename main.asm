@@ -131,6 +131,16 @@ RetardoLoop:
 	GOTO RetardoLoop
     RETURN
 
+RetardoB: ; Retardo con ajustador 2
+    MOVFF Ajustador, Aux1
+    MOVFF Ajustador2, Aux2
+RetardoBLoop:
+    DECFSZ Aux1,F
+	GOTO RetardoBLoop
+    DECFSZ Aux2, F
+	GOTO RetardoBLoop
+    RETURN
+   
 ; Retardo fijo
 Retardo2:
    MOVFF R2Aux, Aux2
@@ -202,6 +212,8 @@ Receptor:
     MOVLW d'0'
     MOVWF Cambio
     
+    MOVFF SAjustador1, Ajustador
+    MOVFF SAjustador2, Ajustador2
     RETFIE 1
     
     EndR:
@@ -355,12 +367,14 @@ SS: ;SS => Seleccion tipo de Senial
 ; Loop que no sale hasta que se active la bandera de cambio
 SenoLoop:
     INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
-    MOVLW 0X7F
-    CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
-	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
     CALL Sine
     MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
-    CALL Retardo 
+    MOVLW d'1'
+    CPFSEQ Ajustador2
+	CALL RetardoB
+    CPFSGT Ajustador2
+	Call Retardo
+    
     TSTFSZ Cambio
 	GOTO SenoLoop
     RETURN
@@ -368,12 +382,14 @@ SenoLoop:
 ; Igual que el de seno pero para la cuadrada
 CuadLoop:
     INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
-    MOVLW 0X7F
-    CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
-	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
     CALL Square
     MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
-    CALL Retardo 
+    MOVLW d'1'
+    CPFSEQ Ajustador2
+	CALL RetardoB
+    CPFSGT Ajustador2
+	Call Retardo
+
     TSTFSZ Cambio
 	GOTO CuadLoop
     RETURN
@@ -381,14 +397,14 @@ CuadLoop:
 ; Igual que el de seno pero para la rampa
 RampaLoop:
     INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
-    MOVLW 0X7F
-    CPFSLT Est ;Salta de linea si Est es menor que 0x7C 
-	CLRF Est ;Si Est no es menor que 0x7C, entonces limpia Est
     CALL Rampa
     MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
-    CALL Retardo 
-    
-    ; Revisar bandera de cambio, si est� en cero regresa
+    MOVLW d'1'
+    CPFSEQ Ajustador2
+	CALL RetardoB
+    CPFSGT Ajustador2
+	Call Retardo
+
     TSTFSZ Cambio
 	GOTO RampaLoop
     RETURN
@@ -462,6 +478,7 @@ Sine:
     RETLW 0x59
     RETLW 0x65
     RETLW 0x72
+    CLRF Est
     RETLW 0x7F
 
 ORG 4000h
@@ -533,6 +550,7 @@ Rampa:
     RETLW 0xF3
     RETLW 0xF7
     RETLW 0xFB
+    CLRF Est
     RETLW 0xFF
 
 ORG 5000h
@@ -604,6 +622,7 @@ Square:
     RETLW 0x01
     RETLW 0x01
     RETLW 0x01
+    CLRF Est
     RETLW 0x01
     
 END
