@@ -12,6 +12,19 @@ Ajustador2 EQU 0X01
 Est EQU 0x02 ; Contador para voltajes de onda
 Aux1 EQU 0x03 ; Usado por Retardo
 Aux2 EQU 0x04 ; Usado por Retardo2
+R2Aux EQU 0X0E ; Auxiliar para configurar Retardo2
+ 
+; Variables Serial
+AuxSerial EQU 0X05 ; Mantiene cuenta de que valor hemos recibido
+ValorSerial EQU 0x06 ; Guarda temporalmente el valor recibido
+Tipo EQU 0X07 ; 1 = Senoidal, 2 = Cuadrada, 3 = Rampa
+SAjustador1 EQU 0X08
+SAjustador2 EQU 0X09
+; Guardar 7 - 9
+Frec1 EQU 0X0A
+Frec2 EQU 0X0B
+Frec3 EQU 0X0C
+Frec4 EQU 0X0D
  
 ORG 0
 GOTO Start
@@ -77,10 +90,7 @@ Start:
     MOVLW h'80'
     CALL LCD_Comm
     
-    MOVLW h'0C'
-    CALL LCD_Comm
-  
-    CALL Retardo
+    CALL Retardo2
     
     MOVLW 0x00
     MOVWF Ajustador
@@ -89,6 +99,12 @@ Start:
     CLRF Est ;limpia Est
     MOVLW 0xFF
     MOVWF Ajustador ;Carga valor inical a Ajustador
+    
+    MOVLW d'1'
+    MOVWF AuxSerial
+    
+    MOVLW d'50'
+    MOVWF R2Aux
     
 MainLoop:
     GOTO MainLoop
@@ -101,26 +117,7 @@ RetardoLoop:
     RETURN
 
 Retardo2:
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
-    INCF Aux2
+   MOVFF R2Aux, Aux2
 LoopRetardo2:
     DECFSZ Aux2,F
 	GOTO LoopRetardo2
@@ -131,7 +128,65 @@ LoopRetardo2:
 ; =========================================================================
 Receptor: 
     MOVF RCREG1, W
+    MOVWF ValorSerial
+    
+    ; Usar PCL para ir cambiando que valor se asigna cada que se mandan
+    ; 8 Caracteres
+    MOVF AuxSerial, W
+    ADDWF PCL
+    MOVFF ValorSerial, Tipo
+    GOTO EndR
+    MOVFF ValorSerial, SAjustador1
+    GOTO EndR
+    MOVFF ValorSerial, SAjustador2
+    GOTO EndR
+    MOVFF ValorSerial, Frec1
+    GOTO EndR
+    MOVFF ValorSerial, Frec2
+    GOTO EndR
+    MOVFF ValorSerial, Frec3
+    GOTO EndR
+    MOVFF ValorSerial, Frec4
+    GOTO EndR
+    
+    ; Final de pasar datos
+    ; Mostrar tipo de onda
+    MOVLW h'80'
+    CALL LCD_Comm
+    
+    CALL Retardo2
+    
+    MOVLW d'48'
+    SUBWF Tipo, 0
     CALL LCD_Char
+    
+    ; Mostrar frecuencia
+    MOVLW h'C0'
+    CALL LCD_Comm
+    
+    MOVF Frec1, W
+    CALL LCD_Char
+    MOVF Frec2, W
+    CALL LCD_Char
+    MOVF Frec3, W
+    CALL LCD_Char
+    MOVF Frec4, W
+    CALL LCD_Char
+    
+    MOVLW 'H'
+    CALL LCD_Char
+    MOVLW 'z'
+    CALL LCD_Char
+    
+    ; Reiniciar el valor de AuxSerial
+    MOVLW d'1'
+    MOVWF AuxSerial
+    
+    RETFIE
+    
+    EndR:
+    MOVLW d'8'
+    ADDWF AuxSerial
     BCF PIR1,5
     RETFIE
     
@@ -143,13 +198,16 @@ LCDInit:
     MOVLW h'38'  ; Comando para configurar la pantalla en modo 8 bits
     CALL LCD_Comm
 
-    MOVLW h'0C' ; Prender pantalla sin cursor
-    CALL LCD_Comm
-    
     ; Configurar caracteres especiales
     CALL LCD_Senoidal
     CALL LCD_Cuadrada
     CALL LCD_Rampa
+    
+    MOVLW h'80'
+    CALL LCD_Comm
+    
+    MOVLW h'0C' ; Prender pantalla sin cursor
+    CALL LCD_Comm
     
     RETURN
     
@@ -160,7 +218,6 @@ LCD_Comm:
     NOP
     BCF PORTB, RB7
     Call Retardo2
-    CLRF PORTA
     RETURN   
  
 LCD_Char:
@@ -170,7 +227,6 @@ LCD_Char:
     NOP
     BCF PORTB, RB7 ; Desactivar el pin Enable
     Call Retardo2
-    CLRF PORTA
     RETURN
     
 ; Configura el caracter de senoidal
