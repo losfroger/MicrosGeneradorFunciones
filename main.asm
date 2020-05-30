@@ -1,45 +1,65 @@
-LIST P = 18f45K50
-#include<p18f45K50.inc>
+;GENERADOR DE ONDAS SENOIDAL; CUADRADA Y RAMPA
+;Este proyecto es un generador de 3 tipos de onda: Senoidal, Cuadrada y Rampa
+;Mediante el uso del Pic PIC18F45K50
+  
+LIST P = 18f45K50 ;PIC18F45K50
+#include<p18f45K50.inc>;Libreria del PIC18F45K50
+
+; Sección de bits de configuración inicial 
+CONFIG WDTEN = OFF
+CONFIG MCLRE = ON
+CONFIG DEBUG = OFF
+CONFIG LVP = OFF
+CONFIG FOSC = INTOSCIO
     
-    CONFIG WDTEN = OFF
-    CONFIG MCLRE = ON
-    CONFIG DEBUG = OFF
-    CONFIG LVP = OFF
-    CONFIG FOSC = INTOSCIO
-    
-Ajustador EQU 0x00 ; Frecuencias
-Ajustador2 EQU 0X01
+;Seccion de variable  
+
+;Variables contadores
+Ajustador EQU 0x00 ; Frecuencias 1
+Ajustador2 EQU 0X01; Frecuencias 2
 Est EQU 0x02 ; Contador para voltajes de onda
-Aux1 EQU 0x03 ; Usado por Retardo
-Aux2 EQU 0x04 ; Usado por Retardo2
-R2Aux EQU 0X0E ; Auxiliar para configurar Retardo2
+Aux1 EQU 0x03 ; Variable Auxiliar1 para Retardo
+Aux2 EQU 0x04 ; Variable Auxiliar2 para Retardo2
+R2Aux EQU 0X0E ; Variable Auxiliar para configurar Retardo2
  
 ; Variables Serial
-AuxSerial EQU 0X05 ; Mantiene cuenta de que valor hemos recibido
+AuxSerial EQU 0X05 ; Variable que almacena el valor recibido
 ValorSerial EQU 0x06 ; Guarda temporalmente el valor recibido
-Tipo EQU 0X07 ; 1 = Senoidal, 2 = Cuadrada, 3 = Rampa
+Tipo EQU 0X07 ; Variable para almacenar el tipo de onda:
+	      ;  1 = Senoidal, 2 = Cuadrada, 3 = Rampa
+
+;Variables SAjustador1 y SAjustador2 para almacenar temporalmente la frecuencia
+;de la onda temporalmente cuando se hace la transmision de datos
 SAjustador1 EQU 0X08
 SAjustador2 EQU 0X09
-; Guardar 7 - 9
+
+; Variables para mostrar en el LCD la frecuencia de la onda
 Frec1 EQU 0X0A
 Frec2 EQU 0X0B
 Frec3 EQU 0X0C
 Frec4 EQU 0X0D
 
 ; Bandera de que se cambio el tipo de onda, se activa si se pone en 0
-Cambio EQU 0xF 
+; Bandera para el cambio de onda:
+ ;0->Activado
+ ;1->Desactivado
+ Cambio EQU 0xF 
  
+;Inicia en la linea 0
 ORG 0
 GOTO Start
 ORG 0x08
 GOTO Receptor
 
 Start:
-   MOVLB 0x0F
+    ;
+    MOVLB 0x0F
+    ;Declaracion el PORTD como puerto digital
     CLRF ANSELD ; PORTD como puerto digital
     CLRF TRISD ; PORTD como salida
     CLRF PORTD ;Limpia PORTD
     
+    ;Declaracion el PORTA como puerto digital
     CLRF ANSELA ; PORTA como puerto digital
     CLRF TRISA ; PORTA como salida
     CLRF PORTA ;Limpia PORTA
@@ -62,7 +82,7 @@ Start:
     CLRF    ANSELC,1
 
     MOVLW   b'00000000'
-    MOVWF   BAUDCON1 ; Baud rate control register 
+    MOVWF   BAUDCON1 ; Registro de control de velocidad de transmision
     
     MOVLW   b'11000000'
     MOVWF   TRISC ; Para poner entradas y salidas
@@ -72,13 +92,13 @@ Start:
     MOVWF   SPBRG1
 
     MOVLW   b'00100100' ;BRGH=1
-    MOVWF   TXSTA1 ;SE HABILITA TRANSMISION DE DATOS
+    MOVWF   TXSTA1 ;Se habilita la transmision de datos
     
     MOVLW   b'00000000'
     MOVWF   SPBRGH1
     
     MOVLW   b'10010000'
-    MOVWF   RCSTA1  ;HABILITA EL PUERTO SERIAL
+    MOVWF   RCSTA1  ;Se habilita el puerto serial
     
     MOVLW b'11000000' ; Activa interrupciones de alto y bajo nivel
     MOVWF INTCON
@@ -86,7 +106,7 @@ Start:
     BSF PIE1, RCIE
     
     
-    ; LCD configuracion
+    ;Configurar LCD
     CALL Retardo2
     CALL LCDInit
     
@@ -115,8 +135,8 @@ Start:
     MOVLW d'1' ; Desactivar bandera de cambio
     MOVWF Cambio
     
-; Loop principal del programa, espera hasta que se active la bandera de que se
-; cambio el tipo de onda
+; Loop principal del programa, espera hasta que se active la bandera que indica
+; que hubo un cambio el tipo de onda
 MainLoop:
     MOVLW d'0'
     CPFSGT Cambio ; Comprobar si hay un cambio
@@ -224,27 +244,27 @@ Receptor:
     RETFIE 1
     
 ; =========================================================================
-; LCD
+; Configuracion del LCD
 ; =========================================================================
 
-; Comandos para inicializar correctamente la pantalla LCD
+; Comandos para inicializar correctamente el LCD
 LCDInit:
     Call Retardo2
-    MOVLW h'38'  ; Comando para configurar la pantalla en modo 8 bits
-    CALL LCD_Comm
+    MOVLW h'38'  ; Configurar pantalla a 8bits
+    CALL LCD_Comm ;Llamada de la funcion para aplicar la configuracion
 
     ; Configurar caracteres especiales
     CALL LCD_Senoidal
     CALL LCD_Cuadrada
     CALL LCD_Rampa
     
-    MOVLW h'80'
-    CALL LCD_Comm
+    MOVLW h'80' ;Poner el cursor en la primer posicion del primer renglon
+    CALL LCD_Comm;Llamada de la funcion para aplicar la configuracion
     
     MOVLW h'0C' ; Prender pantalla sin cursor
-    CALL LCD_Comm
+    CALL LCD_Comm;Llamada de la funcion para aplicar la configuracion
     
-    RETURN
+    RETURN ;Fin de LCDInit
 
 ; Funcion para poder mandar un comando a la pantalla LCD, para usarlo se pone el
 ; comando en el registro W antes de mandarlo a llamar
@@ -255,9 +275,11 @@ LCD_Comm:
     NOP
     BCF PORTB, RB7
     Call Retardo2
-    RETURN   
+    RETURN  ;Fin de LCD_Comm
 
-; Funcion para mandar un caracter a la pantalla LCD, se usa igual que el de comandos
+; Funcion para mandar un caracter a la pantalla LCD
+; Utilizado para escribir un caracter en la pantalla a partir de lo que está
+; en el registro W
 LCD_Char:
     MOVWF PORTA
     BSF PORTB, RB6 ; Mandar datos
@@ -265,14 +287,24 @@ LCD_Char:
     NOP
     BCF PORTB, RB7 ; Desactivar el pin Enable
     Call Retardo2
-    RETURN
-    
-; Configura el caracter especial de senoidal
-; Para usarlo mueve al registro W el valor h'01' y luego manda a llamar LCD_Char
-LCD_Senoidal:
-    MOVLW h'48'
-    CALL LCD_Comm
+    RETURN;Fin de LCD_Char
 
+;=====================================
+;Carateres especiales para las onda
+;(Para usarlo, mueve al registro W el valor h'01' y luego 
+; manda a llamar LCD_Char)
+;======================================
+;Para generar los caracteres especiales para las ondas, se modifica el caracter
+;que iria en esa posicion y se van encendiendo los pixelen que se necesita para
+;crear el caracter de cada onda
+
+;Caracter de onda Senoidal
+;valor h'01'
+LCD_Senoidal:
+    MOVLW h'48';Se le indica al LCD que se modificar un caracter para formar 
+		;el simbolo de la onda Senoidal
+    CALL LCD_Comm
+    ;Creacion del caracter de onda Senoidal
     MOVLW d'0'
     CALL LCD_Char
     MOVLW d'8'
@@ -289,14 +321,15 @@ LCD_Senoidal:
     CALL LCD_Char
     MOVLW d'0'
     CALL LCD_Char
-    RETURN
+    RETURN;Fin de LCD_Senoidal
 
-; Configura el caracter de cuadrada
+;Caracter de onda Cuadrada
 ; Valor: h'02'
 LCD_Cuadrada:
-    MOVLW h'50'
+    MOVLW h'50';Se le indica al LCD que se modificar un caracter para formar 
+		;el simbolo de la onda Senoidal
     CALL LCD_Comm
-
+    ;Creacion del caracter de onda Cuadrada
     MOVLW d'0'
     CALL LCD_Char
     MOVLW d'14'
@@ -313,14 +346,15 @@ LCD_Cuadrada:
     CALL LCD_Char
     MOVLW d'0'
     CALL LCD_Char
-    RETURN
+    RETURN;Fin de LCD_Cuadrada
 
-; Configura el caracter de Rampa
+;Caracter de onda Rampa
 ; Valor: h'03'
 LCD_Rampa:
     MOVLW h'58'
-    CALL LCD_Comm
-
+    CALL LCD_Comm;Se le indica al LCD que se modificar un caracter para formar 
+		;el simbolo de la onda Senoidal
+    ;Creacion del caracter de onda Rampa
     MOVLW d'0'
     CALL LCD_Char
     MOVLW d'2'
@@ -337,86 +371,104 @@ LCD_Rampa:
     CALL LCD_Char
     MOVLW d'0'
     CALL LCD_Char
-    RETURN
+    RETURN;Fin de LCD_Rampa
 
 ; =========================================================================
 ; Generador de funciones
 ; =========================================================================
 
-SS: ;SS => Seleccion tipo de Senial
+SS: ;SS => Seleccion tipo de Señal
     MOVLW d'1'
     MOVWF Cambio
     NOP
     MOVF Tipo, w
     ; Switch case
-    
+    ;Se llama al ciclo para imprimir la señal de onda senoidal
     XORLW '1'
 	BZ SenoLoop
-    
+    ;Se llama al ciclo para imprimir la señal de onda cuadrada
     XORLW '2'^'1'
 	BZ CuadLoop
-    
+    ;Se llama al ciclo para imprimir la señal de onda rampa
     XORLW '3'^'2'
 	BZ RampaLoop
-	
+    
+    ; Desactivar la bandera de cambio
     MOVLW d'1'
     MOVWF Cambio
     
-    RETURN
+    RETURN;Fin de SS
 
-; Loop que no sale hasta que se active la bandera de cambio
+; ciclo para mostrar la onda Senoidal hasta que haya un cambio
 SenoLoop:
     INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
-    CALL Sine
-    MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
+    CALL Sine;Se llama a Sine para obtener el siguiente valor de la onda
+    MOVWF PORTD ;El programa regresa con un valor cargado en W
+		;que es el valor que genera la onda senoidal
     MOVLW d'1'
-    CPFSEQ Ajustador2
+    CPFSEQ Ajustador2;revisa si ajustador2 = 1, si esigual a 1 saltara a CPFSGT
+		    ;Si es diferente ira al CALL 
 	CALL RetardoB
-    CPFSGT Ajustador2
+    CPFSGT Ajustador2;revisa si ajustador2 es mayor a 1, si es mayor a 1
+		    ;saltara a TSTFSZ Cambio, si no, ira a Call Retardo
 	Call Retardo
     
-    TSTFSZ Cambio
+    TSTFSZ Cambio;Sirve para poder salir de SenoLoop cuando se cambie de onda
 	GOTO SenoLoop
     RETURN
 
-; Igual que el de seno pero para la cuadrada
+; ciclo para mostrar la onda cuadrada hasta que haya un cambio
 CuadLoop:
     INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
-    CALL Square
-    MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
+    CALL Square;Se llama a Square para obtener el siguiente valor de la onda
+    MOVWF PORTD ;El programa regresa con un valor cargado en W
+		;que es el valor que genera la onda cuadrada
     MOVLW d'1'
-    CPFSEQ Ajustador2
+    CPFSEQ Ajustador2;revisa si ajustador2 = 1, si esigual a 1 saltara a CPFSGT
+		    ;Si es diferente ira al CALL
 	CALL RetardoB
-    CPFSGT Ajustador2
+    CPFSGT Ajustador2;revisa si ajustador2 es mayor a 1, si es mayor a 1
+		    ;saltara a TSTFSZ Cambio, si no, ira a Call Retardo
 	Call Retardo
-
-    TSTFSZ Cambio
+	
+    TSTFSZ Cambio;Sirve para poder salir de CuadLoop cuando se cambie de onda
 	GOTO CuadLoop
     RETURN
 
-; Igual que el de seno pero para la rampa
+; ciclo para mostrar la onda Rampa hasta que haya un cambio
 RampaLoop:
     INCF Est,F ;Incrementa Est cada que el programa regresa a esta linea
-    CALL Rampa
-    MOVWF PORTD ;El programa regresa con un valor cargado en W, que es el valor que genera la onda senoidal
+    CALL Rampa ;Se llama a Rampa para obtener el siguiente valor de la onda
+    MOVWF PORTD ;El programa regresa con un valor cargado en W
+		;que es el valor que genera la onda cuadrada
     MOVLW d'1'
-    CPFSEQ Ajustador2
+    CPFSEQ Ajustador2;revisa si ajustador2 = 1, si esigual a 1 saltara a CPFSGT
+		    ;Si es diferente ira al CALL
 	CALL RetardoB
-    CPFSGT Ajustador2
+    CPFSGT Ajustador2;revisa si ajustador2 es mayor a 1, si es mayor a 1
+		    ;saltara a TSTFSZ Cambio, si no, ira a Call Retardo
 	Call Retardo
 
-    TSTFSZ Cambio
+    TSTFSZ Cambio;Sirve para poder salir de RampaLoop cuando se cambie de onda
 	GOTO RampaLoop
     RETURN
-    
-ORG 2000h ; Con esta instruccion, "Senoidal" empieza en la linea 3000h para evitar desbordamiento de stack
+
+;==========================================
+;FUNCIONES
+;==========================================
+; Con esta instruccion, "Senoidal" empieza en la linea 2000h para evitar 
+;desbordamiento de stack
+ORG 2000h 
+;Funcion para mostrar la onda Senoidal
 Sine:
     MOVF    Est,W
-    ADDWF   PCL,W
+    ADDWF   PCL,W;PLC guarda la direccion de memoria de la siguiente instruccion
+		  ;Se incrementa para poder tomar los puntos siguiente la onda
+		  ;hace un incremento cada vez que se llama a Sine
     ADDLW   0x04
     MOVWF   PCL
-    ADDWF   PCL,F
-    RETLW 0x7F
+    ADDWF   PCL,F;incrementamos PLC
+    RETLW 0x7F;Cada RTL es un punto de la onda
     RETLW 0x8C
     RETLW 0x99
     RETLW 0xA5
@@ -481,14 +533,19 @@ Sine:
     CLRF Est
     RETLW 0x7F
 
+; Con esta instruccion, "RAMPA" empieza en la linea 4000h para evitar 
+;desbordamiento de stack
 ORG 4000h
+;Funcion para mostrar la onda Rampa
 Rampa:
     MOVF    Est,W
-    ADDWF   PCL,W
+    ADDWF   PCL,W;PLC guarda la direccion de memoria de la siguiente instruccion
+		  ;Se incrementa para poder tomar los puntos siguiente la onda
+		  ;hace un incremento cada vez que se llama a Rampa
     ADDLW   0x04
     MOVWF   PCL
-    ADDWF   PCL,F
-    RETLW 0x00
+    ADDWF   PCL,F;incrementamos PLC
+    RETLW 0x00;Cada RTL es un punto de la onda
     RETLW 0x04
     RETLW 0x08
     RETLW 0x0C
@@ -552,15 +609,20 @@ Rampa:
     RETLW 0xFB
     CLRF Est
     RETLW 0xFF
-
+    
+; Con esta instruccion, "RAMPA" empieza en la linea 5000h para evitar 
+;desbordamiento de stack
 ORG 5000h
+;Funcion para mostrar la onda Cuadrada
 Square:
     MOVF    Est,W
-    ADDWF   PCL,W
+    ADDWF   PCL,W;PLC guarda la direccion de memoria de la siguiente instruccion
+		  ;Se incrementa para poder tomar los puntos siguiente la onda
+		  ;hace un incremento cada vez que se llama a Rampa
     ADDLW   0x04
     MOVWF   PCL
-    ADDWF   PCL,F
-    RETLW 0xFE
+    ADDWF   PCL,F;incrementamos PLC
+    RETLW 0xFE;Cada RTL es un punto de la onda
     RETLW 0xFE
     RETLW 0xFE
     RETLW 0xFE
